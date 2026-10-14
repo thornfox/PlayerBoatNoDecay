@@ -6,7 +6,7 @@ using Rust;
 namespace Oxide.Plugins
 {
     [Info("Player Boat No Decay", "ThornFox", "1.2.0")]
-    [Description("Prevents player-built (modular) boats from taking decay damage.")]
+    [Description("Prevents player-built (modular) boats from taking decay damage. | Verhindert, dass selbstgebaute (modulare) Spieler-Boote durch Decay Schaden nehmen.")]
     public class PlayerBoatNoDecay : RustPlugin
     {
         private const string PermUse = "playerboatnodecay.use";
