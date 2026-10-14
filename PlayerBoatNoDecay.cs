@@ -5,7 +5,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Player Boat No Decay", "ThornFox", "1.1.0")]
+    [Info("Player Boat No Decay", "ThornFox", "1.2.0")]
     [Description("Prevents player-built (modular) boats from taking decay damage.")]
     public class PlayerBoatNoDecay : RustPlugin
     {
@@ -14,6 +14,9 @@ namespace Oxide.Plugins
 
         private Configuration config;
         private HashSet<string> boatTypeNames;
+
+        // Cache: prefabID -> "is this prefab a protected boat type?" (avoids reflection on every decay tick)
+        private readonly Dictionary<uint, bool> protectedPrefabCache = new Dictionary<uint, bool>();
 
         #region Configuration
 
@@ -68,10 +71,10 @@ namespace Oxide.Plugins
             BaseEntity boat = FindPlayerBoat(entity);
             if (boat == null) return null;
 
-            if (config.RequirePermission && !OwnerHasPermission(boat, entity)) return null;
+            if (config.RequirePermission && !AnyOwnerHasPermission(boat, entity)) return null;
 
             if (config.Debug)
-                Puts($"Blocked decay on {entity.ShortPrefabName} ({entity.net?.ID}) attached to boat {boat.ShortPrefabName}.");
+                Puts($"Blocked decay on {entity.ShortPrefabName} ({entity.net?.ID}) attached to boat {boat.ShortPrefabName} ({boat.net?.ID}).");
 
             return true; // Damage is discarded
         }
@@ -88,19 +91,31 @@ namespace Oxide.Plugins
             return decay >= damage.Total() * 0.99f;
         }
 
-        // Checks the entity itself and its parent chain (building blocks/deployables are parented to the boat)
+        // Checks the entity itself and its parent chain (building blocks/deployables are parented to the boat).
+        // Stops at any other vehicle, so vehicles parked on a boat (e.g. a minicopter on deck) keep their vanilla decay.
         private BaseEntity FindPlayerBoat(BaseEntity entity)
         {
             BaseEntity current = entity;
             for (int i = 0; i < MaxParentDepth && current != null; i++)
             {
                 if (IsProtectedType(current)) return current;
+                if (current is BaseVehicle) return null;
                 current = current.GetParentEntity();
             }
             return null;
         }
 
         private bool IsProtectedType(BaseEntity entity)
+        {
+            bool result;
+            if (protectedPrefabCache.TryGetValue(entity.prefabID, out result)) return result;
+
+            result = MatchesProtectedType(entity);
+            protectedPrefabCache[entity.prefabID] = result;
+            return result;
+        }
+
+        private bool MatchesProtectedType(BaseEntity entity)
         {
             if (!string.IsNullOrEmpty(entity.ShortPrefabName) && boatTypeNames.Contains(entity.ShortPrefabName))
                 return true;
@@ -113,11 +128,46 @@ namespace Oxide.Plugins
             return false;
         }
 
-        private bool OwnerHasPermission(BaseEntity boat, BaseEntity part)
+        // Vanilla Rust does not assign an OwnerID to player-built boats, so ownership is resolved via:
+        // 1. the boat's OwnerID (if set by another plugin),
+        // 2. every player authorized on the boat's vehicle privilege (boat cupboard),
+        // 3. the OwnerID of the decaying part itself (e.g. the player who placed a deployable).
+        private bool AnyOwnerHasPermission(BaseEntity boat, BaseEntity part)
         {
-            ulong owner = boat.OwnerID != 0 ? boat.OwnerID : part.OwnerID;
-            if (owner == 0) return false;
-            return permission.UserHasPermission(owner.ToString(), PermUse);
+            if (HasPerm(boat.OwnerID)) return true;
+
+            VehiclePrivilege privilege = GetVehiclePrivilege(boat);
+            if (privilege != null && privilege.authorizedPlayers != null)
+            {
+                foreach (var userId in privilege.authorizedPlayers)
+                {
+                    if (HasPerm(userId)) return true;
+                }
+            }
+
+            return part != boat && HasPerm(part.OwnerID);
+        }
+
+        private bool HasPerm(ulong userId) =>
+            userId != 0 && permission.UserHasPermission(userId.ToString(), PermUse);
+
+        private static VehiclePrivilege GetVehiclePrivilege(BaseEntity boat)
+        {
+            if (boat.children == null) return null;
+
+            foreach (BaseEntity child in boat.children)
+            {
+                VehiclePrivilege privilege = child as VehiclePrivilege;
+                if (privilege != null) return privilege;
+            }
+
+            foreach (BaseEntity child in boat.children)
+            {
+                SteeringWheel wheel = child as SteeringWheel;
+                if (wheel != null && wheel.Privilege != null) return wheel.Privilege;
+            }
+
+            return null;
         }
 
         #endregion
