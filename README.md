@@ -73,6 +73,9 @@ Set the server ConVars `playerboat.decayminutes` and `playerboat.decaystartdelay
 - **1.1.0** – Configuration keys switched from German to English.
 - **1.0.0** – Initial release.
 
+### Tested on RustRentner
+All ThornFox plugins are tested extensively on [rustrentner.de](https://rustrentner.de).
+
 ### License
 
 MIT – see [LICENSE](LICENSE).
@@ -146,6 +149,9 @@ Die Server-ConVars `playerboat.decayminutes` und `playerboat.decaystartdelayminu
 - **1.2.0** – Der Permission-Modus prüft jetzt auch die am Boots-Schrank autorisierten Spieler (Vanilla-Boote haben keinen Besitzer, daher war der Rumpf im Permission-Modus nie geschützt). Auf Booten abgestellte Fahrzeuge werden nicht mehr mitgeschützt. Typ-Erkennung wird pro Prefab zwischengespeichert (bessere Performance).
 - **1.1.0** – Konfigurationsschlüssel von Deutsch auf Englisch umgestellt.
 - **1.0.0** – Erstveröffentlichung.
+
+### Getestet auf RustRentner
+Alle Plugins von ThornFox werden ausgiebig auf [rustrentner.de](https://rustrentner.de) getestet.
 
 ### Lizenz
 
